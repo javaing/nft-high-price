@@ -1,6 +1,27 @@
 # nft-high-price
 
+Find NFTs in your Tezos / Ethereum wallet whose **purchase-time USD value** was at or above a threshold. The script multiplies the on-chain price you paid (XTZ / ETH / stablecoin) by the coin's USD rate on the purchase date, filters, and exports to CSV.
+
+Useful for personal collection audits, tax prep, and spotting your highest-cost acquisitions across years of activity.
+
 篩選個人錢包中「購入時美金價值 ≥ 門檻」的 NFT，支援 Tezos 與 Ethereum。輸出 CSV（完整 / 精簡 / 未過濾全量）。
+
+## TL;DR
+
+```bash
+cp .env.example .env   # fill in ALCHEMY_API_KEY (for ETH only)
+node tezos.mjs tz1...                # Tezos wallet
+node eth.mjs 0x...  --threshold=500  # Ethereum wallet, $500 threshold
+# → CSVs appear in out/
+```
+
+## Features
+
+- **Tezos** — queries objkt.com GraphQL (`mint`, `open_edition_buy`, `listing_sale`, `offer_sale`, `dutch_auction_sale`) plus a TzKT fallback for NFTs acquired on non-objkt marketplaces (e.g. CIRCA direct mints).
+- **Ethereum** — uses Alchemy `getAssetTransfers`, pairs NFT inbound with outbound ETH / WETH / BETH / USDC / USDT / DAI in the same tx hash, and splits bundle purchases evenly.
+- **Historical prices** — batches CryptoCompare `histoday` in one call (2000 days each), caches to local JSON (`cache/`) so subsequent runs skip already-fetched dates.
+- **Event classification** — each row tagged as `sale` / `mint` / `relay_mint` (fxhash / Verse.works-style fiat relay mints have no on-chain price and are flagged explicitly).
+- **Multi-wallet** — pass any number of wallet addresses for the same chain in one invocation.
 
 ## 功能
 
@@ -48,6 +69,12 @@ node eth.mjs 0xXXXXX [0xYYYYY ...] [--threshold=200]
 **完整版 (eth)**：`wallet, chain, collection, name, tokenId, contract, eventType, purchaseDate, priceEth, ethUsdRate, stableUsd, priceUsd, priceSource, txHash, imageUrl, openseaLink`
 
 **完整版 (tezos)**：`wallet, chain, collection, name, tokenId, contract, eventType, purchaseDate, priceXtz, xtzUsdRate, priceUsd, ophash, imageUrl, objktLink`
+
+## Known limitations
+
+- **Fiat relay mints have no on-chain price.** Verse.works, fxhash on Ethereum, CIRCA, etc. settle the user's payment in fiat off-chain; only the NFT transfer is recorded. These rows show `eventType=relay_mint` (or `mint` when the contract burns directly to the user) with `priceUsd=0` — check your platform invoices for the actual cost.
+- **Inbound transfers without payment are indistinguishable.** Airdrops, gifts, and self-paid relay mints all land as `relay_mint`.
+- **Stablecoins assumed 1:1 with USD.** USDC / USDT / DAI are summed at face value, not their real spot price on the day.
 
 ## 已知限制
 
